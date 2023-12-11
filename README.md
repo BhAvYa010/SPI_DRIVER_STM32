@@ -1,3 +1,3 @@
-##STM32 SPI Driver
+STM32 SPI Driver
 
 This repository is a simple yet effective SPI driver designed for STM32 microcontrollers, specifically targeting the STM32F10x series. The code provides functions for initializing the SPI peripheral, transmitting single characters, and sending string messages. To integrate this SPI driver into your STM32 project, copy the SPI.h and SPI.c files into your project directory, include SPI.h in your application code, and call the provided functions. The README includes concise usage instructions, function details, project requirements, and licensing information. Contributions, issues, and pull requests are welcome!
