@@ -1,19 +1,42 @@
-# STM32 GPIO and SPI Driver
+# STM32 SPI Driver
 
-This repository contains a set of C code files for configuring GPIO pins and using the SPI peripheral on STM32 microcontrollers. The code is designed to be used with the STM32F10x series.
+This repository contains a simple C code implementation for configuring and using the SPI peripheral on STM32 microcontrollers. The code is designed to be used with the STM32F10x series.
 
-## Table of Contents
+## Overview
 
-- [Introduction](#introduction)
-- [Requirements](#requirements)
-- [Usage](#usage)
-- [Functions](#functions)
-- [Contributing](#contributing)
-- [License](#license)
+This project focuses on providing a lightweight SPI driver for STM32 microcontrollers. It includes functions for initializing the SPI peripheral, transmitting a single character, and sending a string message over SPI.
 
-## Introduction
+## Usage
 
-The code in this repository provides functions for configuring GPIO pins and interacting with the SPI peripheral on STM32 microcontrollers. It includes a GPIO driver (`GPIO_Driver.h`) and an SPI driver (`SPI.h`) with functions to initialize, transmit, and receive data.
+To integrate this SPI driver into your STM32 project:
+
+1. Copy the files `SPI.h` and `SPI.c` into your project directory.
+
+2. Include `SPI.h` in your application code:
+
+    ```c
+    #include "SPI.h"
+    ```
+
+3. Call the provided functions to initialize and use the SPI peripheral:
+
+    ```c
+    // Example: Initialize SPI1
+    initializeSPI(1);
+
+    // Example: Transmit a single character over SPI1
+    transmitSPI(1, 'A');
+
+    // Example: Send a string message over SPI1
+    char message[] = "Hello, SPI!";
+    sendMessageSPI(1, message);
+    ```
+
+## Functions
+
+- `initializeSPI(spiNumber)`: Initializes the SPI peripheral on the specified SPI number.
+- `transmitSPI(spiNumber, txChar)`: Transmits a single character using SPI.
+- `sendMessageSPI(spiNumber, message)`: Transmits a string message using SPI.
 
 ## Requirements
 
@@ -21,48 +44,3 @@ The code in this repository provides functions for configuring GPIO pins and int
 - STM32 Standard Peripheral Library
 - [Optional] STM32 development environment (e.g., STM32CubeIDE, STM32CubeMX)
 
-## Usage
-
-1. Clone the repository:
-
-    ```bash
-    git clone https://github.com/yourusername/stm32-gpio-spi-driver.git
-    cd stm32-gpio-spi-driver
-    ```
-
-2. Include the necessary files in your STM32 project:
-    - Copy `GPIO_Driver.h`, `GPIO_Driver.c`, `SPI.h`, and `SPI.c` into your project directory.
-
-3. Integrate the code into your project.
-
-4. Configure your STM32 project to include the necessary files and build the project.
-
-5. Use the provided functions in your application code.
-
-## Functions
-
-### GPIO Driver
-
-- `configurePin(port, pin, direction, options)`: Configures a GPIO pin based on the specified parameters.
-- `readPin(port, pin)`: Reads the current state of a GPIO pin.
-- `writePin(port, pin, status)`: Writes a state to a GPIO pin.
-- `togglePin(port, pin)`: Toggles the state of a GPIO pin.
-- `controlPin(pin, status)`: Controls the state of a GPIO pin directly using the GPIOC register (assuming GPIOC is used for direct control).
-- `initializeBlueLED()`: Initializes the blue LED on pin PC13.
-- `controlBlueLED(state)`: Controls the state of the blue LED on pin PC13.
-- `configureDigitalInput(port, pin)`: Configures a GPIO pin as a digital input.
-- `configureDigitalOutput(port, pin)`: Configures a GPIO pin as a digital output.
-
-### SPI Driver
-
-- `initializeSPI(spiNumber)`: Initializes the SPI peripheral on the specified SPI number.
-- `transmitSPI(spiNumber, txChar)`: Transmits a single character using SPI.
-- `sendMessageSPI(spiNumber, message)`: Transmits a string message using SPI.
-
-## Contributing
-
-Feel free to contribute to this project by opening issues or submitting pull requests.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
