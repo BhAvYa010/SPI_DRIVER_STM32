@@ -1,17 +1,21 @@
-void initializeSPI(unsigned short spiNumber);
-void transmitSPI(unsigned short spiNumber, char txChar);
-void sendMessageSPI(unsigned short spiNumber, char message[]);
-/*
-Actual setup
-SPI - 1
---> 
-PA4 --> SS
-PA5 --> SCLK
-PA6 --> MISO
-PA7 --> MOSI
-SP2 - 2
-PB12 --> SS
-PB13 --> SCLK
-PB14 --> MISO
-PB15 --> MOSI
-*/
+#ifndef STM32L432KC
+#define STM32L432KC
+#include "stm32l432xx.h"
+#endif
+
+void initClocks(void);
+
+void initSPI_SSM(void);
+void configSpi1Pins_SSM(void);
+void setPinMode_SSM(void);
+void setAF_SSM(void);
+void configSpi_SSM(void);
+uint8_t transferSPI_SSM(uint8_t tx_data);
+
+
+void initSPI_HSM(void);
+void configSpi1Pins_HSM(void);
+void setPinMode_HSM(void);
+void setAF_HSM(void);
+void configSpi_HSM(void);
+uint8_t transferSPI_HSM(uint8_t tx_data);
