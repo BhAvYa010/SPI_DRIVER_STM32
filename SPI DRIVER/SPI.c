@@ -1,97 +1,190 @@
-#include "stm32f10x.h" 
-#include "GPIO.h" 
+#include "stm32l432xx.h"
 #include "SPI.h"
-void configurePinSPI(unsigned short port, unsigned short pin, unsigned short direction, unsigned short options) {
-    volatile unsigned long *configRegister;
-    unsigned short adjustedPin = pin;
-    unsigned short offset = 0x00;
 
-    // If the pin number is greater than 7, adjust the values accordingly.
-    if (pin > 7) {
-        adjustedPin -= 8;
-        offset = 0x01;
-    }
-
-    // Enable the clock for the selected GPIO port.
-    if (port == 1) {
-        RCC_APBENR |= 0x4;
-        configRegister = (volatile unsigned long *)(&GPIO_A + offset);
-    } else if (port == 2) {
-        RCC_APBENR |= 0x8;
-        configRegister = (volatile unsigned long *)(&GPIO_B + offset);
-    } else if (port == 3) {
-        RCC_APBENR |= 0x10;
-        configRegister = (volatile unsigned long *)(&GPIO_C + offset);
-    }
-
-    // Clear the bits corresponding to the selected pin and set the desired configuration.
-    *configRegister &= ~(0xf << (adjustedPin * 4));
-    *configRegister |= ((direction << (adjustedPin * 4)) | (options << (adjustedPin * 4 + 2)));
+// Initialize peripheral clocks for SPI1
+void initClocks(void)
+{
+  RCC->AHB2ENR |= (1u << 1) | (1u << 0); // ENABLE GPIOA and GPIOB CLOCK
+  RCC->APB2ENR |= (1u << 12);             // ENABLE SPI1 CLOCK
 }
 
-int readPinSPI(unsigned short port, unsigned short pin) {
-    volatile unsigned long *inputDataRegister;
-    unsigned long offset = 0x02;
-    int state;
+/************************ Hardware Slave Management SPI Code ************************/
 
-    // Select the appropriate GPIO port.
-    if (port == 1) {
-        inputDataRegister = (volatile unsigned long *)(&GPIO_A + offset);
-    } else if (port == 2) {
-        inputDataRegister = (volatile unsigned long *)(&GPIO_B + offset);
-    } else if (port == 3) {
-        inputDataRegister = (volatile unsigned long *)(&GPIO_C + offset);
-    }
+// Initialize SPI1 peripheral with hardware slave management
+void initSPI_HSM(void)
+{
+    // Initialize clocks for SPI1
+    initClocks();
 
-    // Read the state of the specified pin.
-    state = ((*inputDataRegister & (1 << pin)) >> pin);
+    // Configure pins for SPI1
+    configSpi1Pins_HSM();
 
-    return state;
+    // Configure SPI1
+    configSpi_HSM();
 }
 
-void writePinSPI(unsigned short port, unsigned short pin, unsigned short status) {
-    volatile unsigned long *outputDataRegister;
-    unsigned long offset = 0x03;
+// Configure pin modes for SPI1 (hardware slave management)
+void setPinMode_HSM(void)
+{
+    // Reset pin modes
+    GPIOA->MODER &= ~((3u << (2 * 1)) | (3u << (2 * 11)) | (3u << (2 * 12)));
+    GPIOB->MODER &= ~(3u << (2 * 0)); // CLEAR PB0
 
-    // Select the appropriate GPIO port.
-    if (port == 1) {
-        outputDataRegister = (volatile unsigned long *)(&GPIO_A + offset);
-    } else if (port == 2) {
-        outputDataRegister = (volatile unsigned long *)(&GPIO_B + offset);
-    } else if (port == 3) {
-        outputDataRegister = (volatile unsigned long *)(&GPIO_C + offset);
-    }
-
-    // Set or clear the specified pin based on the status.
-    status ? (*outputDataRegister |= (status << pin)) : (*outputDataRegister &= ~(1 << pin));
+    // Configure pin modes
+    GPIOA->MODER |= (2u << (2 * 1)) | (2u << (2 * 11)) | (2u << (2 * 12));
+    GPIOB->MODER |= (2u << (2 * 0)); // SET PB0 TO AF
 }
 
-void togglePinSPI(unsigned short port, unsigned short pin) {
-    if (readPinSPI(port, pin)) {
-        writePinSPI(port, pin, 0);
-    } else {
-        writePinSPI(port, pin, 1);
-    }
+// Set alternate function for pins (hardware slave management)
+void setAF_HSM(void)
+{
+    // Reset pin alternate function
+    GPIOA->AFR[0] &= ~(15u << (4 * 1));
+    GPIOA->AFR[1] &= ~(15u << (4 * 3) | 15u << (4 * 4));
+    GPIOB->AFR[0] &= ~(15u << (4 * 0));
 
+    // Set pin alternate function
+    GPIOA->AFR[0] |= (5u << (4 * 1));
+    GPIOA->AFR[1] |= (5u << (4 * 3) | 5u << (4 * 4));
+    GPIOB->AFR[0] |= (5u << (4 * 0)); // SET SPI1 SSEL (PB0);
 }
 
-void controlPinSPI(unsigned short pin, unsigned short status) {
-    // Set or clear the specified pin based on the status.
-    status ? (GPIOC->ODR |= (status << pin)) : (GPIOC->ODR &= ~(1 << pin));
+// Configure SPI1 pins (hardware slave management)
+void configSpi1Pins_HSM(void)
+{
+    // Set pins to alternate function mode
+    setPinMode_HSM();
+
+    // Set alternate function to be SPI1
+    setAF_HSM();
 }
 
-void initializeBlueLEDSPI(void) {
-    configurePinSPI(PC, 13, PIN_OUTPUT_50, OUTPUT_PUSH_PULL);
+// Configure SPI1 (hardware slave management)
+void configSpi_HSM(void)
+{
+    // Configure SPI1_CR1 register
+    SPI1->CR1 &= ~((1u << 15) | (1u << 13) | (1u << 10) | (1u << 9) | (1u << 7) | (7u << 3));
+    SPI1->CR1 |= (5u << 3) | (1u << 2) | (1u << 1) | (1u << 0);
+
+    // Configure SPI1_CR2 register
+    SPI1->CR2 &= ~((1u << 12) | (7u << 5) | (1u << 4) | (1u << 3) | (3u << 0));
+    SPI1->CR2 |= (15u << 8) | (1u << 2);
 }
 
-void controlBlueLEDSPI(unsigned short state) {
-    writePinSPI(PC, 13, state);
+// Perform SPI transaction with hardware slave management
+uint8_t transferSPI_HSM(uint8_t tx_data)
+{
+    uint8_t rx_data = 0;
+
+    // Enable SPI
+    SPI1->CR1 |= (1u << 6);
+
+    // Write data and dummy byte to data register
+    SPI1->DR = (uint16_t)tx_data;
+
+    // Wait until SPI is not busy and RX buffer is not empty
+    while ((SPI1->SR) & (1u << 7) || !((SPI1->SR) & (1u << 0)))
+        ;
+
+    // Read a byte from the RX buffer
+    rx_data = (uint8_t)SPI1->DR;
+
+    // Disable SPI
+    SPI1->CR1 &= ~(1u << 6);
+
+    return rx_data;
 }
 
-void configureDigitalInputSPI(unsigned short port, unsigned short pin) {
-    configurePinSPI(port, pin, PIN_INPUT, INPUT_PULL);
+/************************ Software Slave Management SPI Code ************************/
+
+// Configure SPI1 pins (software slave management)
+void configSpi1Pins_SSM(void)
+{
+    // Set pins to alternate function mode
+    setPinMode_SSM();
+
+    // Set alternate function to be SPI1
+    setAF_SSM();
 }
 
-void configureDigitalOutputSPI(unsigned short port, unsigned short pin) {
-    configurePinSPI(port, pin, PIN_OUTPUT_50, OUTPUT_PUSH_PULL);
+// Configure pin modes for SPI1 (software slave management)
+void setPinMode_SSM(void)
+{
+    // Reset pin modes
+    GPIOA->MODER &= ~((3u << (2 * 1)) | (3u << (2 * 11)) | (3u << (2 * 12)));
+    GPIOB->MODER &= ~(3u << (2 * 0)); // CLEAR PB0
+
+    // Configure pin modes
+    GPIOA->MODER |= (2u << (2 * 1)) | (2u << (2 * 11)) | (2u << (2 * 12));
+    GPIOB->MODER |= (1u << (2 * 0)); // SET PB0 TO OUTPUT MODE
 }
+
+// Set alternate function for pins (software slave management)
+void setAF_SSM(void)
+{
+    // Reset pin alternate function
+    GPIOA->AFR[0] &= ~(15u << (4 * 1));
+    GPIOA->AFR[1] &= ~(15u << (4 * 3) | 15u << (4 * 4));
+
+    // Set pin alternate function
+    GPIOA->AFR[0] |= (5u << (4 * 1));
+    GPIOA->AFR[1] |= (5u << (4 * 3) | 5u << (4 * 4));
+}
+
+// Initialize SPI1 peripheral with software slave management
+void initSPI_SSM(void)
+{
+    // Initialize clocks for SPI1
+    initClocks();
+
+    // Configure pins for SPI1
+    configSpi1Pins_SSM();
+
+    // Initialize slave select high
+    GPIOB->ODR |= (1u << 0);
+
+    // Configure SPI1
+    configSpi_SSM();
+}
+
+// Configure SPI1 (software slave management)
+void configSpi_SSM(void)
+{
+    // Configure SPI1_CR1 register
+    SPI1->CR1 &= ~((1u << 15) | (1u << 13) | (1u << 10) | (1u << 7) | (7u << 3));
+    SPI1->CR1 |= (1u << 9) | (1u << 8) | (5u << 3) | (1u << 2) | (1u << 1) | (1u << 0);
+
+    // Configure SPI1_CR2 register
+    SPI1->CR2 &= ~((1u << 12) | (7u << 5) | (1u << 
+
+4) | (1u << 3) | (3u << 0));
+    SPI1->CR2 |= 15u << 8;
+
+    // Enable SPI1
+    SPI1->CR1 |= 1u << 6;
+}
+
+// Perform SPI transaction with software slave management
+uint8_t transferSPI_SSM(uint8_t tx_data)
+{
+    uint8_t rx_data = 0;
+
+    // Set slave select low
+    GPIOB->ODR &= ~(1u << 0);
+
+    // Write data and dummy byte to data register
+    SPI1->DR = (uint16_t)(tx_data << 8);
+
+    // Wait until SPI is not busy and RX buffer is not empty
+    while ((SPI1->SR) & (1u << 7) || !((SPI1->SR) & (1u << 0)))
+        ;
+
+    // Read a byte from the RX buffer
+    rx_data = (uint8_t)SPI1->DR;
+
+    // Set slave select high
+    GPIOB->ODR |= (1u << 0);
+
+    return rx_data;
+}
+```
