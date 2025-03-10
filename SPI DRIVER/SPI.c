@@ -1,190 +1,104 @@
-#include "stm32l432xx.h"
 #include "SPI.h"
 
-// Initialize peripheral clocks for SPI1
-void initClocks(void)
-{
-  RCC->AHB2ENR |= (1u << 1) | (1u << 0); // ENABLE GPIOA and GPIOB CLOCK
-  RCC->APB2ENR |= (1u << 12);             // ENABLE SPI1 CLOCK
+// Clock Initialization
+void initClocks(void) {
+    RCC->AHB2ENR |= (1u << 1) | (1u << 0);  // Enable GPIOA and GPIOB clocks
+    RCC->APB2ENR |= (1u << 12);             // Enable SPI1 clock
 }
 
-/************************ Hardware Slave Management SPI Code ************************/
+/********************** Hardware Slave Management **********************/
+static void configSpi1Pins_HSM(void) {
+    // Configure GPIO modes
+    GPIOA->MODER &= ~(GPIO_MODER_MODE1 | GPIO_MODER_MODE11 | GPIO_MODER_MODE12);
+    GPIOB->MODER &= ~GPIO_MODER_MODE0;
+    
+    GPIOA->MODER |= (2u << GPIO_MODER_MODE1_Pos)  |  // PA1: AF mode
+                    (2u << GPIO_MODER_MODE11_Pos) |  // PA11: AF mode
+                    (2u << GPIO_MODER_MODE12_Pos);   // PA12: AF mode
+    GPIOB->MODER |= (2u << GPIO_MODER_MODE0_Pos);    // PB0: AF mode
 
-// Initialize SPI1 peripheral with hardware slave management
-void initSPI_HSM(void)
-{
-    // Initialize clocks for SPI1
+    // Configure alternate functions (AF5 for SPI1)
+    GPIOA->AFR[0] = (GPIOA->AFR[0] & ~GPIO_AFRL_AFSEL1) | (5u << GPIO_AFRL_AFSEL1_Pos);
+    GPIOA->AFR[1] = (GPIOA->AFR[1] & ~(GPIO_AFRH_AFSEL11 | GPIO_AFRH_AFSEL12)) |
+                    (5u << GPIO_AFRH_AFSEL11_Pos) | (5u << GPIO_AFRH_AFSEL12_Pos);
+    GPIOB->AFR[0] = (GPIOB->AFR[0] & ~GPIO_AFRL_AFSEL0) | (5u << GPIO_AFRL_AFSEL0_Pos);
+}
+
+static void configSpi_HSM(void) {
+    // SPI configuration
+    SPI1->CR1 = SPI_CR1_BR_2 | SPI_CR1_BR_0 |  // Baud rate: fPCLK/32 (0b101)
+                SPI_CR1_MSTR |                 // Master mode
+                SPI_CR1_CPOL |                 // CPOL = 1
+                SPI_CR1_CPHA;                  // CPHA = 1
+
+    SPI1->CR2 = SPI_CR2_FRXTH |                // RXNE event on 8-bit reception
+                (7u << SPI_CR2_DS_Pos);        // 8-bit data size (0b0111)
+}
+
+void initSPI_HSM(void) {
     initClocks();
-
-    // Configure pins for SPI1
     configSpi1Pins_HSM();
-
-    // Configure SPI1
     configSpi_HSM();
+    SPI1->CR1 |= SPI_CR1_SPE;  // Enable SPI
 }
 
-// Configure pin modes for SPI1 (hardware slave management)
-void setPinMode_HSM(void)
-{
-    // Reset pin modes
-    GPIOA->MODER &= ~((3u << (2 * 1)) | (3u << (2 * 11)) | (3u << (2 * 12)));
-    GPIOB->MODER &= ~(3u << (2 * 0)); // CLEAR PB0
-
-    // Configure pin modes
-    GPIOA->MODER |= (2u << (2 * 1)) | (2u << (2 * 11)) | (2u << (2 * 12));
-    GPIOB->MODER |= (2u << (2 * 0)); // SET PB0 TO AF
+uint8_t transferSPI_HSM(uint8_t tx_data) {
+    SPI1->DR = tx_data;  // Start transmission
+    
+    // Wait for transmission complete
+    while(SPI1->SR & SPI_SR_BSY); 
+    while(!(SPI1->SR & SPI_SR_RXNE));
+    
+    return (uint8_t)SPI1->DR;
 }
 
-// Set alternate function for pins (hardware slave management)
-void setAF_HSM(void)
-{
-    // Reset pin alternate function
-    GPIOA->AFR[0] &= ~(15u << (4 * 1));
-    GPIOA->AFR[1] &= ~(15u << (4 * 3) | 15u << (4 * 4));
-    GPIOB->AFR[0] &= ~(15u << (4 * 0));
+/********************** Software Slave Management **********************/
+static void configSpi1Pins_SSM(void) {
+    // Configure GPIO modes
+    GPIOA->MODER &= ~(GPIO_MODER_MODE1 | GPIO_MODER_MODE11 | GPIO_MODER_MODE12);
+    GPIOB->MODER &= ~GPIO_MODER_MODE0;
+    
+    GPIOA->MODER |= (2u << GPIO_MODER_MODE1_Pos)  |  // PA1: AF mode
+                    (2u << GPIO_MODER_MODE11_Pos) |  // PA11: AF mode
+                    (2u << GPIO_MODER_MODE12_Pos);   // PA12: AF mode
+    GPIOB->MODER |= (1u << GPIO_MODER_MODE0_Pos);   // PB0: Output mode
 
-    // Set pin alternate function
-    GPIOA->AFR[0] |= (5u << (4 * 1));
-    GPIOA->AFR[1] |= (5u << (4 * 3) | 5u << (4 * 4));
-    GPIOB->AFR[0] |= (5u << (4 * 0)); // SET SPI1 SSEL (PB0);
+    // Configure alternate functions (AF5 for SPI1)
+    GPIOA->AFR[0] = (GPIOA->AFR[0] & ~GPIO_AFRL_AFSEL1) | (5u << GPIO_AFRL_AFSEL1_Pos);
+    GPIOA->AFR[1] = (GPIOA->AFR[1] & ~(GPIO_AFRH_AFSEL11 | GPIO_AFRH_AFSEL12)) |
+                    (5u << GPIO_AFRH_AFSEL11_Pos) | (5u << GPIO_AFRH_AFSEL12_Pos);
 }
 
-// Configure SPI1 pins (hardware slave management)
-void configSpi1Pins_HSM(void)
-{
-    // Set pins to alternate function mode
-    setPinMode_HSM();
+static void configSpi_SSM(void) {
+    // SPI configuration
+    SPI1->CR1 = SPI_CR1_SSM |                  // Software slave management
+                SPI_CR1_SSI |                  // Internal slave select
+                SPI_CR1_BR_2 | SPI_CR1_BR_0 |  // Baud rate: fPCLK/32
+                SPI_CR1_MSTR |                 // Master mode
+                SPI_CR1_CPOL |                 // CPOL = 1
+                SPI_CR1_CPHA;                  // CPHA = 1
 
-    // Set alternate function to be SPI1
-    setAF_HSM();
+    SPI1->CR2 = SPI_CR2_FRXTH |                // RXNE event on 8-bit reception
+                (7u << SPI_CR2_DS_Pos);        // 8-bit data size (0b0111)
 }
 
-// Configure SPI1 (hardware slave management)
-void configSpi_HSM(void)
-{
-    // Configure SPI1_CR1 register
-    SPI1->CR1 &= ~((1u << 15) | (1u << 13) | (1u << 10) | (1u << 9) | (1u << 7) | (7u << 3));
-    SPI1->CR1 |= (5u << 3) | (1u << 2) | (1u << 1) | (1u << 0);
-
-    // Configure SPI1_CR2 register
-    SPI1->CR2 &= ~((1u << 12) | (7u << 5) | (1u << 4) | (1u << 3) | (3u << 0));
-    SPI1->CR2 |= (15u << 8) | (1u << 2);
-}
-
-// Perform SPI transaction with hardware slave management
-uint8_t transferSPI_HSM(uint8_t tx_data)
-{
-    uint8_t rx_data = 0;
-
-    // Enable SPI
-    SPI1->CR1 |= (1u << 6);
-
-    // Write data and dummy byte to data register
-    SPI1->DR = (uint16_t)tx_data;
-
-    // Wait until SPI is not busy and RX buffer is not empty
-    while ((SPI1->SR) & (1u << 7) || !((SPI1->SR) & (1u << 0)))
-        ;
-
-    // Read a byte from the RX buffer
-    rx_data = (uint8_t)SPI1->DR;
-
-    // Disable SPI
-    SPI1->CR1 &= ~(1u << 6);
-
-    return rx_data;
-}
-
-/************************ Software Slave Management SPI Code ************************/
-
-// Configure SPI1 pins (software slave management)
-void configSpi1Pins_SSM(void)
-{
-    // Set pins to alternate function mode
-    setPinMode_SSM();
-
-    // Set alternate function to be SPI1
-    setAF_SSM();
-}
-
-// Configure pin modes for SPI1 (software slave management)
-void setPinMode_SSM(void)
-{
-    // Reset pin modes
-    GPIOA->MODER &= ~((3u << (2 * 1)) | (3u << (2 * 11)) | (3u << (2 * 12)));
-    GPIOB->MODER &= ~(3u << (2 * 0)); // CLEAR PB0
-
-    // Configure pin modes
-    GPIOA->MODER |= (2u << (2 * 1)) | (2u << (2 * 11)) | (2u << (2 * 12));
-    GPIOB->MODER |= (1u << (2 * 0)); // SET PB0 TO OUTPUT MODE
-}
-
-// Set alternate function for pins (software slave management)
-void setAF_SSM(void)
-{
-    // Reset pin alternate function
-    GPIOA->AFR[0] &= ~(15u << (4 * 1));
-    GPIOA->AFR[1] &= ~(15u << (4 * 3) | 15u << (4 * 4));
-
-    // Set pin alternate function
-    GPIOA->AFR[0] |= (5u << (4 * 1));
-    GPIOA->AFR[1] |= (5u << (4 * 3) | 5u << (4 * 4));
-}
-
-// Initialize SPI1 peripheral with software slave management
-void initSPI_SSM(void)
-{
-    // Initialize clocks for SPI1
+void initSPI_SSM(void) {
     initClocks();
-
-    // Configure pins for SPI1
     configSpi1Pins_SSM();
-
-    // Initialize slave select high
-    GPIOB->ODR |= (1u << 0);
-
-    // Configure SPI1
     configSpi_SSM();
+    GPIOB->ODR |= (1u << 0);  // Initialize NSS high
+    SPI1->CR1 |= SPI_CR1_SPE; // Enable SPI
 }
 
-// Configure SPI1 (software slave management)
-void configSpi_SSM(void)
-{
-    // Configure SPI1_CR1 register
-    SPI1->CR1 &= ~((1u << 15) | (1u << 13) | (1u << 10) | (1u << 7) | (7u << 3));
-    SPI1->CR1 |= (1u << 9) | (1u << 8) | (5u << 3) | (1u << 2) | (1u << 1) | (1u << 0);
-
-    // Configure SPI1_CR2 register
-    SPI1->CR2 &= ~((1u << 12) | (7u << 5) | (1u << 
-
-4) | (1u << 3) | (3u << 0));
-    SPI1->CR2 |= 15u << 8;
-
-    // Enable SPI1
-    SPI1->CR1 |= 1u << 6;
+uint8_t transferSPI_SSM(uint8_t tx_data) {
+    GPIOB->ODR &= ~(1u << 0);  // Assert NSS (low)
+    
+    SPI1->DR = tx_data;         // Start transmission
+    
+    // Wait for transmission complete
+    while(SPI1->SR & SPI_SR_BSY);
+    while(!(SPI1->SR & SPI_SR_RXNE));
+    
+    GPIOB->ODR |= (1u << 0);   // Release NSS (high)
+    return (uint8_t)SPI1->DR;
 }
-
-// Perform SPI transaction with software slave management
-uint8_t transferSPI_SSM(uint8_t tx_data)
-{
-    uint8_t rx_data = 0;
-
-    // Set slave select low
-    GPIOB->ODR &= ~(1u << 0);
-
-    // Write data and dummy byte to data register
-    SPI1->DR = (uint16_t)(tx_data << 8);
-
-    // Wait until SPI is not busy and RX buffer is not empty
-    while ((SPI1->SR) & (1u << 7) || !((SPI1->SR) & (1u << 0)))
-        ;
-
-    // Read a byte from the RX buffer
-    rx_data = (uint8_t)SPI1->DR;
-
-    // Set slave select high
-    GPIOB->ODR |= (1u << 0);
-
-    return rx_data;
-}
-```
