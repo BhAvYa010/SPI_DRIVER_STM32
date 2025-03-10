@@ -1,32 +1,16 @@
 #include "stm32l432xx.h"
-#include "Timer.h"
 #include "SPI.h"
+#include "Timer.h"
 
-
-int main (void)
-{
-    //MPU9250 Addresses
+int main(void) {
     uint8_t data[4] = {187, 188, 189, 190};
+    uint8_t rxd;
     
-    //STORES DATA RECEIVED FROM MPU9250
-    uint8_t rxd = 0;
+    initTim2();        // Initialize timer
+    initSPI_SSM();     // Initialize SPI with software slave management
     
-    //SET UP THE TIMER
-    initTim2();
-    
-    //SETUP SPI MASTER
-    initSPI_SSM();
-    
-    while(1)
-    {
-        //WRITE TO SPI
-        rxd = transferSPI_SSM(data[0]);
-        
-        //DELAY MS
-        delay(50);
+    while(1) {
+        rxd = transferSPI_SSM(data[0]);  // Transfer data
+        delay(50);                       // 50ms delay
     }
 }
-
-
-
-
